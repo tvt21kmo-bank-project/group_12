@@ -34,7 +34,7 @@ module.exports = {
                 // Update jwt to database
                 const updateToken = await conn.query(
                     "UPDATE `card` SET `token`=? WHERE `id`=?",
-                    [token, getUser[0].id]
+                    [token, loginQuery[0].id]
                 )
                 if(updateToken.affectedRows == 1){
                     data.token = token;
