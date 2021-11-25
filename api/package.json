@@ -24,8 +24,10 @@
   },
   "homepage": "https://github.com/tvt21kmo-bank-project/group_12#readme",
   "dependencies": {
+    "argon2": "^0.28.2",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
+    "jsonwebtoken": "^8.5.1",
     "mariadb": "^2.5.5"
   }
 }
