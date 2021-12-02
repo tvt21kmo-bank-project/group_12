@@ -12,12 +12,14 @@ module.exports = {
          */
         data = {
             'status': 400,
-            'token': null
+            'token': null,
+            'username': null,
+            'cardNumber': null
         }
         try {
             const conn = await pool.getConnection();
             const loginQuery = await conn.query(
-                'SELECT `id`,`card_number`,`card_pin` FROM `card` WHERE `card_number`=?',
+                'SELECT a1.`id`, a1.`card_number`, a1.`card_pin`, a2.`name` FROM `card` a1 INNER JOIN `user` a2 ON a1.`user_id`=a2.`id` WHERE a1.`card_number`=?',
                 cardNumber
             )
             // If card number exists in database and pin matches
@@ -38,11 +40,13 @@ module.exports = {
                 )
                 if(updateToken.affectedRows == 1){
                     data.token = token;
+                    data.username = loginQuery[0].name;
                     data.status = 200;
                 }
             } else {
                 data.status = 403;
             }
+            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);
@@ -68,6 +72,7 @@ module.exports = {
             if(logoutQuery.affectedRows == 1){
                 data.status = 200;
             }
+            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);

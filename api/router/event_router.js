@@ -11,9 +11,13 @@ router.get('/balance', auth, async function(req, res){
     const cardNumber = req.user.cardNumber;
     data = await Event.getBalance(cardNumber);
     if(data.status == 200){
+        console.log(data.balance);
         res.status(200).send(
             {
-                'balance': data.balance
+                'balance': data.balance,
+                'owner': data.owner,
+                'ownerAddress': data.ownerAddress,
+                'ownerPhone': data.ownerPhone
             }
         )
     } else {

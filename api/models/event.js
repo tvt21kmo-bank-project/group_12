@@ -16,15 +16,27 @@ module.exports = {
         try {
             const conn = await pool.getConnection();
             const getBalance = await conn.query(
-                'SELECT `account`.`balance` FROM `card` INNER JOIN `account` ON `card`.`account_id`=`account`.`id` WHERE `card`.`card_number`=?',
+                'SELECT \
+                    a2.`balance`, \
+                    a3.`name`, \
+                    a3.`address`, \
+                    a3.`phone` \
+                FROM `card` a1 \
+                    INNER JOIN `account` a2 ON a1.`account_id`=a2.`id` \
+                    INNER JOIN `user` a3 ON a2.`owner_user_id`=a3.`id` \
+                WHERE a1.`card_number`=?',
                 cardNumber
             )
             if((getBalance[0] != null)){
                 data.status = 200;
                 data.balance = getBalance[0].balance;
+                data.owner = getBalance[0].name;
+                data.ownerAddress = getBalance[0].address;
+                data.ownerPhone = getBalance[0].phone;
             } else {
                 data.status = 403;
             }
+            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);
@@ -83,6 +95,7 @@ module.exports = {
             if(depositQuery.affectedRows == 1){
                 data.status = 200;
             }
+            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);

@@ -5,6 +5,7 @@ const User = require('../models/user.js')
 // Login user
 router.post('/login', async function(req, res){
     console.log('POST, /login');
+    console.log(req.body);
     const cardNumber = req.body.cardNumber;
     const cardPin = req.body.cardPin;
     if(cardNumber && cardPin){
@@ -12,7 +13,8 @@ router.post('/login', async function(req, res){
         if(data.status == 200){
             res.status(200).send(
                 {
-                   'token': data.token
+                   'token': data.token,
+                   'username': data.username
                 }
              );
         } else {
