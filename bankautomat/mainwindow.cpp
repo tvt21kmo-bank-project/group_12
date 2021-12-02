@@ -156,3 +156,11 @@ void MainWindow::on_pushButtonDepositDeposit_clicked()
     });
 }
 
+
+void MainWindow::on_pushButtonLogout_clicked()
+{
+    apiHandler->get("/user/logout", true);
+    apiHandler->setActiveToken(NULL);
+    ui->stackedWidget->setCurrentIndex(pageIndexLogin);
+}
+

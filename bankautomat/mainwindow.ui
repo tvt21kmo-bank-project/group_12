@@ -24,7 +24,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="page_login">
      <widget class="QLineEdit" name="lineEdit_cardNumber">
@@ -143,7 +143,7 @@
        <string>Show balance</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="pushButton_2">
+     <widget class="QPushButton" name="pushButtonLogout">
       <property name="geometry">
        <rect>
         <x>600</x>
