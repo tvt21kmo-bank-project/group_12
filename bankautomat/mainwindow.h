@@ -29,6 +29,8 @@ private slots:
 
     void on_pushButtonDepositDeposit_clicked();
 
+    void on_pushButtonLogout_clicked();
+
 private:
     Ui::MainWindow *ui;
     ApiHandler *apiHandler;
