@@ -1,7 +1,7 @@
 #ifndef APIHANDLER_H
 #define APIHANDLER_H
 
-#endif // APIHANDLER_H
+
 #include <QObject>
 #include <QNetworkReply>
 #include <QAuthenticator>
@@ -17,14 +17,13 @@ public:
     ApiHandler() {}
     virtual ~ApiHandler() {}
 
-    void setActiveToken(QString token);
-    QString getActiveToken();
-
 private:
     const QString apiBaseUrl = "http://localhost:3001";
-    QString activeToken;
 
 public slots:
-    QNetworkReply* get(QString url, bool tokenRequired);
-    QNetworkReply* post(QString url, QByteArray data, bool tokenRequired);
+    QNetworkReply* get(QString url, QString token);
+    QNetworkReply* post(QString url, QByteArray data, QString token);
+    QNetworkReply* put(QString url, QByteArray data, QString token);
+
 };
+#endif // APIHANDLER_H

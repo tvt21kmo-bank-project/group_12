@@ -13,11 +13,13 @@ CONFIG += c++11
 SOURCES += \
     apiHandler.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    sessionmanager.cpp
 
 HEADERS += \
     apiHandler.h \
-    mainwindow.h
+    mainwindow.h \
+    sessionmanager.h
 
 FORMS += \
     mainwindow.ui
