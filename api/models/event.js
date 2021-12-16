@@ -1,7 +1,7 @@
 const pool = require("../config/db.js");
 
 module.exports = {
-    async getBalance(cardNumber){
+    async getBalance(cardId, includeTransactions){
         /**
          * Status codes:
          * 200, Request succesful
@@ -13,38 +13,53 @@ module.exports = {
             'status': 400,
             'balance': null
         }
+        var conn = null;
         try {
-            const conn = await pool.getConnection();
+            conn = await pool.getConnection();
             const getBalance = await conn.query(
                 'SELECT \
                     a2.`balance`, \
-                    a3.`name`, \
-                    a3.`address`, \
-                    a3.`phone` \
+                    a1.`credit_limit` \
                 FROM `card` a1 \
                     INNER JOIN `account` a2 ON a1.`account_id`=a2.`id` \
-                    INNER JOIN `user` a3 ON a2.`owner_user_id`=a3.`id` \
-                WHERE a1.`card_number`=?',
-                cardNumber
+                WHERE a1.`id`=?',
+                cardId
             )
             if((getBalance[0] != null)){
                 data.status = 200;
                 data.balance = getBalance[0].balance;
-                data.owner = getBalance[0].name;
-                data.ownerAddress = getBalance[0].address;
-                data.ownerPhone = getBalance[0].phone;
+                data.creditLimit = getBalance[0].credit_limit;
+
+                if(includeTransactions == true){
+                    // Get last 10 entries from transaction logs
+                    transactionsQuery = await conn.query(
+                        'SELECT \
+                            `amount`, \
+                            `timestamp`, \
+                            `type` \
+                        FROM `transaction_log`\
+                        WHERE `card_id`=? \
+                        ORDER BY `timestamp` DESC \
+                        LIMIT 10',
+                        cardId
+                    );
+                    data.transactions = transactionsQuery;
+                }
             } else {
                 data.status = 403;
             }
-            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);
         }
+        if(conn != null){
+            conn.release();
+        }
         return data;
     },
 
-    async getTransactions(cardNumber, page){
+    async getTransactions(cardId, page){
+        console.log("man");
         /**
          * Status codes:
          * 200, Request succesful
@@ -53,8 +68,9 @@ module.exports = {
          */
         data = {
             'status': 400,
-            'log': []
+            'transactions': []
         }
+        var conn = null;
         try {
             limit = 10;
             offset = 0;
@@ -64,93 +80,148 @@ module.exports = {
                 offset = page * 10 - 10;
             }
 
-            const conn = await pool.getConnection();
+            conn = await pool.getConnection();
             const transactionsQuery = await conn.query(
-                'SELECT `transaction_log`.`amount`, `transaction_log`.`timestamp`, `transaction_log`.`type` FROM `transaction_log` LEFT JOIN `card` ON `transaction_log`.`card_id`=`card`.`id` WHERE `card`.`card_number`=? ORDER BY `transaction_log`.`timestamp` LIMIT ? OFFSET ?',
-                [cardNumber, limit, offset]
-            )
-            data.log = transactionsQuery;         
+                'SELECT \
+                    `amount`, \
+                    `timestamp`, \
+                    `type` \
+                FROM `transaction_log`\
+                WHERE `card_id`=? \
+                ORDER BY `timestamp` \
+                LIMIT ? \
+                OFFSET ?',
+                [cardId, limit, offset]
+            );
+            data.transactions = transactionsQuery;         
             data.status = 200;
         } catch (err){
             data.status = 500;
             console.log(err);
         }
+        if(conn != null){
+            conn.release();
+        }
         return data
     },
 
-    async depositMoney(cardNumber, amount){
+    async depositMoney(cardId, amount){
         data = {
             'status': 400
         }
-        console.log(amount);
+        var conn = null;
         try {
-            const conn = await pool.getConnection();
+            conn = await pool.getConnection();
             const depositQuery = await conn.query(
-                'UPDATE `account` INNER JOIN `card` ON `account`.`id`= `card`.`account_id` SET `balance`=(`balance`+?) WHERE `card`.`card_number`=?',
+                'UPDATE \
+                    `account` a1 \
+                INNER JOIN \
+                    `card` a2 ON a1.`id`=a2.`account_id`\
+                SET a1.`balance`=(a1.`balance` + ?) \
+                WHERE a2.`id`=?',
                 [
                     amount,
-                    parseInt(cardNumber)
+                    cardId
                 ]
             );
             if(depositQuery.affectedRows == 1){
+                balanceQuery = await conn.query(
+                    'SELECT a1.`id`, a1.`balance` FROM `account` a1 INNER JOIN `card` a2 ON a1.`id`=a2.`account_id` WHERE a2.`id`=?',
+                    cardId
+                );
+                if(balanceQuery[0] != null){
+                    data.newBalance = balanceQuery[0].balance;
+                    transQuery = await conn.query(
+                        'INSERT INTO `transaction_log`(`amount`,`type`,`account_id`,`card_id`) VALUES (?,1,?,?)',
+                        [amount, balanceQuery[0].id, cardId]
+                    );
+                }
                 data.status = 200;
             }
-            conn.release();
         } catch (err){
             data.status = 500;
             console.log(err);
         }
+        if(conn != null){
+            conn.release();
+        }
         return data
     },
 
-    async withdrawMoney(cardNumber, amount){
+    async withdrawMoney(cardId, sessionCardType, amount){
         /**
          * Status codes:
          * 200, Withdraw succesful
          * 400, Bad request
-         * 403, Not enough balance to withdraw current amount
+         * 460, Not enough balance to withdraw current amount
+         * 461, Not enough credit
          * 500, Server error
          */
         data = {
             'status': 400,
             'newBalance': null,
         }
+        var conn = null;
         try {
-            const conn = await pool.getConnection();
-            const checkBalanceQuery = await conn.query(
-                'SELECT `account`.`id`, `account`.`balance`, `account`.`credit_limit`, `account`.`type` FROM `account` INNER JOIN `card` ON `account`.`id`=`card`.`account_id` WHERE `card`.`card_number`=?',
-                cardNumber
+            conn = await pool.getConnection();
+            const balanceQuery = await conn.query(
+                'SELECT \
+                    a1.`id`, \
+                    a1.`balance`, \
+                    a2.`credit_limit` \
+                FROM `account` a1 \
+                INNER JOIN `card` a2 \
+                    ON a1.`id`=a2.`account_id` \
+                WHERE a2.`id`=?',
+                cardId
             );
-            if(checkBalanceQuery[0] != null){
-                if(checkBalanceQuery[0].type == 1){
-                    // Account type credit
-                    if(amount > (checkBalanceQuery[0].balance + checkBalanceQuery[0].credit_limit)){
-                        data.status = 403;
-                        return data
+            if(balanceQuery[0] != null){
+                if(sessionCardType == 1){
+                    // Debit
+                    if(amount < balanceQuery[0].balance){
+                        updateQuery = await conn.query(
+                            'UPDATE `account` SET `balance`=(`balance`-?) WHERE `id`=?',
+                            [amount, balanceQuery[0].id]
+                        );
+                        if(updateQuery.affectedRows >= 1){
+                            data.status = 200;
+                            data.newBalance = (balanceQuery[0].balance - amount);
+                            // Add entry to transaction log
+                            transQuery = await conn.query(
+                                'INSERT INTO `transaction_log`(`amount`,`type`,`account_id`,`card_id`) VALUES (?,2,?,?)',
+                                [amount, balanceQuery[0].id, cardId]
+                            );
+                        }
+                    } else {
+                        data.status = 460;
                     }
-                } else if(checkBalanceQuery[0].type == 2){
-                    // Account type debit
-                    if(amount > checkBalanceQuery[0].balance){
-                        data.status = 403;
-                        return data
+                } else if (sessionCardType == 2){
+                    // Credit
+                    if(amount < (balanceQuery[0].balance + balanceQuery[0].credit_limit)){
+                        updateQuery = await conn.query(
+                            'UPDATE `account` SET `balance`=(`balance`-?) WHERE `id`=?',
+                            [amount, balanceQuery[0].id]
+                        );
+                        if(updateQuery.affectedRows >= 1){
+                            data.status = 200;
+                            data.newBalance = (balanceQuery[0].balance - amount);
+                            // Add entry to transaction log
+                            transQuery = await conn.query(
+                                'INSERT INTO `transaction_log`(`amount`,`type`,`account_id`,`card_id`) VALUES (?,2,?,?)',
+                                [amount, balanceQuery[0].id, cardId]
+                            );
+                        }
+                    } else {
+                        data.status = 461;
                     }
-                }
-                const withdrawQuery = await conn.query(
-                    'UPDATE `account` SET `balance`=(`balance`-?) WHERE `id`=?',
-                    [
-                        amount,
-                        checkBalanceQuery[0].id
-                    ]
-                )
-                if(withdrawQuery.affectedRows == 1){
-                    // Calculate new balance from existing data to save 1 db query
-                    data.newBalance = checkBalanceQuery[0].balance - amount;
-                    data.status = 200;
                 }
             }
         } catch (err) {
             data.status = 500;
             console.log(err);
+        }
+        if(conn != null){
+            conn.release();
         }
         return data
     }
